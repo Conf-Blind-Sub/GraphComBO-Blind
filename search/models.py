@@ -1,20 +1,20 @@
 import numpy as np
-from torch import Tensor
+import networkx as nx
 import torch
+import gpytorch
+import botorch
+from torch import Tensor
 from typing import Tuple, Union, Optional, Dict, Any
 from time import time
-import networkx as nx
-from botorch.models import FixedNoiseGP, SingleTaskGP, ModelListGP
-from botorch.models.transforms.outcome import Standardize
-# from botorch.optim.fit import fit_gpytorch_torch
-import gpytorch
+from math import log
 from gpytorch.likelihoods import GaussianLikelihood
 from gpytorch.constraints import GreaterThan, Interval
 from gpytorch.priors import GammaPrior
 from gpytorch.mlls import SumMarginalLogLikelihood, ExactMarginalLogLikelihood
-
-from .kernels import DiffusionGraphKernel, PolynomialKernel, PolynomialKernelSumInverse
-from .utils import eigendecompose_laplacian, fit_gpytorch_model, filter_invalid
+from botorch.models import FixedNoiseGP, SingleTaskGP, ModelListGP
+from botorch.models.transforms.outcome import Standardize
+from botorch.sampling.normal import SobolQMCNormalSampler
+from botorch.utils.transforms import standardize
 from botorch.acquisition import (ExpectedImprovement,
                                  LogExpectedImprovement,
                                  NoisyExpectedImprovement,
@@ -22,10 +22,8 @@ from botorch.acquisition import (ExpectedImprovement,
                                  qNoisyExpectedImprovement,
                                  UpperConfidenceBound,
                                  qUpperConfidenceBound)
-from botorch.sampling.normal import SobolQMCNormalSampler
-from math import log
-import botorch
-from botorch.utils.transforms import standardize
+from .kernels import DiffusionGraphKernel, PolynomialKernel, PolynomialKernelSumInverse
+from .utils import eigendecompose_laplacian, fit_gpytorch_model, filter_invalid
 
 def initialize_model(
         train_X: torch.Tensor,
@@ -74,7 +72,6 @@ def initialize_model(
         order = covar_kwargs.get("order", None)
         # when order is not explicitly specified,
         if covar_type == "diffusion":
-            #order = min(order, train_X.shape[-2]) if order else len(context_graph)
             order = min(order, train_X.shape[-2] ) if order else len(context_graph)
         '''
         elif covar_type in ["polynomial", "polynomial_suminverse"]:
@@ -203,14 +200,9 @@ def optimize_acqf(
                 return None
         for q in range(batch_size):
             acqf_vals = acqf(all_possible_nodes.unsqueeze(1))
-            if len(X_avoid) >= 3:
-                #__import__("pdb").set_trace()
-                print(f"acqf_val.max: {acqf_vals.max():.4f}; X_prior: {True if X_prior is not None else False}")
-                pass
             if X_prior is not None:
                 X_prior = X_prior[all_possible_nodes].squeeze()
                 acqf_vals = acqf_vals * X_prior  
-
             best_node = torch.argmax(acqf_vals).item()
             nodes_to_eval.append(all_possible_nodes[best_node])
     elif method == "local_search":

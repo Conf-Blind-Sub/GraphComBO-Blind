@@ -10,7 +10,8 @@ from problems.GNN.GNN_attack import GIN
 from utils.config_utils import setup
 
 # This is the code to train the victim GNN (a GIN model) and store its parameters
-# it can achieve 96% training accuracy when using the pre-specified hyper-parameters
+# it can achieve 99.5% training accuracy when using the pre-specified hyper-parameters
+# on ENZYMES from TUDataset
 if __name__ == '__main__':
     seed = 0
     torch.manual_seed(seed)

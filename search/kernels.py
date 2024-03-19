@@ -3,7 +3,6 @@ import gpytorch.kernels
 from gpytorch.kernels import Kernel
 import torch
 from typing import Optional
-#from search.utils import eigendecompose_laplacian
 from .utils import eigendecompose_laplacian
 import networkx as nx
 

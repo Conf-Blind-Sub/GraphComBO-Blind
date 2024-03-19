@@ -32,11 +32,6 @@ def GraphBO_Search(Problem: object,
                    model_optim_kwargs):
     if not trust_region_state.restart_triggered: 
         X_mapped = tuple_to_int_mapper(X_train) # remap X_train to the new context subgraph
-        '''
-        if X_prior is not None:
-            idx_to_keep = torch.all(torch.arange(X_prior.shape[0])!=X_mapped.long(), dim=0)
-            X_prior = X_prior[idx_to_keep]
-        '''
         # 1. Build the surrogate model with pre-specified kernel choice.
         model, mll, cached_eigenbasis = initialize_model(
             train_X=X_mapped,

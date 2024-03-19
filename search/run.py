@@ -12,9 +12,9 @@ from problems.underlying_problem import get_synthetic_problem
 from search.baselines import DFS_BFS_Search, Local_Search
 from search.graphbo import GraphBO_Search
 from search.self_combograph import ComboSubgraph_Constructor
+from search.trust_region import update_state, restart
 from search.utils import prune_baseline, ComboNeighbors_Generator, generate_start_location, \
                          eigendecompose_laplacian, filter_invalid, Index_Mapper
-from search.trust_region import update_state, restart
 
 def run_search(
         label: str,
@@ -39,18 +39,17 @@ def run_search(
         problem_kwargs: Optional[Dict[str, Any]] = None,
         dtype: torch.dtype = torch.float,
         device: str = "cpu",
+        save_frequency: int = 1,
+        animation: bool = False,
+        animation_interval: int = 20,
         order=None,):
+    ''' 
+    we don't need to set random seeds since we repeated each experiment 
+    for 20 times in our paper.
+    '''
     graph_kernels = ["polynomial","polynomial_suminverse","diffusion","diffusion_ard"]
     trust_region_kwargs = trust_region_kwargs or {}
     problem_kwargs = problem_kwargs or {}
-
-    ''' 
-    # we don't need to set random seeds since we repeated each experiment 
-    # for 50 times in our paper.
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    '''
     save_path = os.path.join(save_path, label)
     if not os.path.exists(save_path):
         os.makedirs(save_path, exist_ok=True)
@@ -193,11 +192,6 @@ def run_search(
         # --------------- Select Query Location ------------------ 
         if label == "random": # We use a random sampler similar to "restart"
             candidates = set()
-            '''
-            candidate = torch.from_numpy(np.random.RandomState(
-                (seed+1)*iterations + iter).choice(list(Problem.underlying_graph.nodes),
-                                                   k,replace=False))
-            '''
             while len(candidates)<iterations:
                 for patience in range(iterations): # each time we sample "iteraions" candidates 
                     # and later we filter out the invalid ones
@@ -211,7 +205,6 @@ def run_search(
                 candidates = filter_invalid(candidates, X_queried) # Filter out the visited nodes
                 if candidates.shape[0] < iterations:
                     candidates = set([tuple(i.tolist()) for i in candidates]) 
-            
             if len(candidates)>iterations:
                 candidates = candidates[:iterations]
         elif label in ["bfs", "dfs"]:
@@ -273,20 +266,18 @@ def run_search(
         
         # --------------- Evaluate Query Location -------------------
         if candidates is None:
-            print('heihei')
             converge = True
             continue # Skip the sections below when all combo-nodes in the current subgraph are queried.
         else:
             converge = False
 
         new_y = Problem(candidates) # Query the selected location
-        # do not append the candidate if it is a previously qeuried anchor point at restart
 
         #if X_train.shape[0] == 0 and anchor is not None:
         candidate_in_query = (candidates.squeeze().long() == X_queried.long()).all(
                                 dim=-1).sum().item() if label in graph_kernels else False
         if candidate_in_query:
-            pass
+            pass # do not append the candidate if it is a previously qeuried anchor point at restart
         else:
             X_queried = torch.cat([X_queried, candidates], dim=0) # append the new queried point to the queried set
             Y_queried = torch.cat([Y_queried, new_y], dim=0)
