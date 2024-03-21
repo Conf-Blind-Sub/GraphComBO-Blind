@@ -1,10 +1,3 @@
-# implementation lifted from https://github.com/facebookresearch/AttentiveNAS/blob/main/utils/config.py
-
-
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-# implementation adapted from Slimmable: https://github.com/JiahuiYu/slimmable_networks
-
-"""config utilities for yml file."""
 import os
 import yaml
 
