@@ -1,4 +1,4 @@
-label: ["diffusion_ard", "random", "local_search", "bfs", "dfs"]
+label: [diffusion_ard, local_search, dfs, bfs, random, random_walk]
 save_dir: ./logs/BA/
 n_exp: 10 # number of experiments with different random seeds
 bo_settings:

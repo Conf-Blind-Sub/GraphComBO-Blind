@@ -42,6 +42,15 @@ def create_path(save_dir, problem_name, problem_kwargs, bo_kwargs):
                           f'k-{problem_kwargs["k"]}',
                           f'wsk-{problem_kwargs["wsk"]}', f'p-{problem_kwargs["p"]}', 
                           ])
+        if problem_kwargs["graph_type"] == "sbm":
+            s = "_".join([problem_kwargs["graph_type"], 
+                          problem_kwargs["underlying_function"], 
+                          f'n-{problem_kwargs["n"]}',
+                          f'k-{problem_kwargs["k"]}',
+                          f'ngroup-{problem_kwargs["ngroup"]}', 
+                          f'probin-{problem_kwargs["probin"]}', 
+                          f'probout-{problem_kwargs["probout"]}', 
+                          ])
         if problem_kwargs["graph_type"] == "grid":
             s = "_".join([problem_kwargs["graph_type"], 
                           problem_kwargs["underlying_function"], 

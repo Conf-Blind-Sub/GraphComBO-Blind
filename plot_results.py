@@ -15,21 +15,20 @@ def plot_result(ax, path:str, plot_kwargs:dict=None, median=False, std=False, cu
     #exp_dir = os.path.join(path, label)
     d_color = {"polynomial":"#1f77b4", "diffusion_ard":"#8c564b", 
                "polynomial_suminverse":"#e377c2", "diffusion":"#7f7f7f",
-               "random":"#ff7f0e", "local_search":"#2ca02c", "dfs": "#d62728", "bfs": "#9467bd"} 
+               "random":"#ff7f0e", "local_search":"#2ca02c", 
+               "random_walk": "#0c0c14", "dfs": "#d62728", "bfs": "#9467bd",}
     d_label = {"polynomial":"BO_Poly", "polynomial_suminverse":"BO_SumInverse", 
                "diffusion_ard":"BO_Diff_ARD", "diffusion":"BO_Diff", 
-               "random":"Random", "local_search":"Local search", "dfs": "Dfs", "bfs": "Bfs"}
+               "random":"Random", "local_search":"Local Search", 
+               "random_walk":"k-Random Walk", "dfs": "DFS", "bfs": "BFS",}
     exp_dir = path
     algorithm_name = [name for name in os.listdir(exp_dir) if os.path.isdir(os.path.join(exp_dir, name))]
     
     if degree or exploration or distance:
         if 'random' in algorithm_name:
             algorithm_name.remove('random')
-    
-    kernel_name='diffusion_ard'
-    
-    n_diff = len([f for f in os.listdir(os.path.join(exp_dir, kernel_name)) if ".pt" in f])
-    print(f"# of BO results: {n_diff}")
+        elif 'random_walk' in algorithm_name:
+            algorithm_name.remove('random_walk')
     
     min_max_len = np.inf
     tick_size = 25

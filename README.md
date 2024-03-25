@@ -18,6 +18,7 @@ Use the following code in a bash shell to run an experiment with pre-specified c
 python main.py --problem BA
 python main.py --problem WS
 python main.py --problem GRID
+python main.py --problem SBM
 python main.py --problem Transitivity
 python main.py --problem GNN_attack
 ```

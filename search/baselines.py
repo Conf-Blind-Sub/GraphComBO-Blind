@@ -2,10 +2,34 @@ import numpy as np
 import networkx as nx
 import torch
 import random
-from search.utils import ComboNeighbors_Generator
+from search.utils import ComboNeighbors_Generator, filter_invalid
 from search.trust_region import restart
 
 # -------------------- Baselines -------------------
+# This baseline maintains k indenpendent random walks
+def kRandom_Walk(Graph, X_queried, seed, k, n_initial_points):
+    current_location = X_queried[-1].long()
+    iter, patience = 0, 1000
+    while iter < patience:
+        # randomly choose a neighbor for each random walk
+        # combine them together as the candidate to query next
+        candidates = [random.choice(list(Graph.neighbors(current_location[i].item()))) for i in range(k)]
+        candidates = torch.tensor(candidates).unsqueeze(0)
+        candidates = filter_invalid(candidates, X_queried)
+        if candidates.shape[0] == 1:
+            return candidates
+        else:
+            iter+=1
+    print("Can not sample enough nodes for the k-random walk, restarting at a new location ...")
+    candidates, trust_region_state = restart(base_graph=Graph,
+                                             n_init=n_initial_points,
+                                             seed=seed,
+                                             k=k,
+                                             X_avoid=X_queried,
+                                             anchor=None,
+                                             use_trust_region=False,)
+    return candidates
+    
 def DFS_BFS_Search(Problem,
                    X_queried,
                    label,

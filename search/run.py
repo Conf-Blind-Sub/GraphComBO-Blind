@@ -9,7 +9,7 @@ from time import time
 from decimal import Decimal
 from typing import Optional, Dict, Any
 from problems.underlying_problem import get_synthetic_problem
-from search.baselines import DFS_BFS_Search, Local_Search
+from search.baselines import kRandom_Walk, DFS_BFS_Search, Local_Search
 from search.graphbo import GraphBO_Search
 from search.self_combograph import ComboSubgraph_Constructor
 from search.trust_region import update_state, restart
@@ -69,7 +69,7 @@ def run_search(
     use_trust_region = label in graph_kernels
     n_restart = 0
     n_contextsubgraph = 0
-    large_Q = True if (k>=20 and len(Problem.underlying_graph)>=1000) else large_Q
+    #large_Q = True if (k>=20 and len(Problem.underlying_graph)>=1000) else large_Q
     
     if start_location_method in ["ei", "betweenness", "degree", "pagerank"]: # useful when k is large
         start_location = generate_start_location(Problem.underlying_graph,k,start_location_method)
@@ -151,7 +151,7 @@ def run_search(
 
     
     # Initialise baselines 
-    elif label in ["random", "dfs", "bfs", "local_search"]: 
+    elif label in ["random", "random_walk", "dfs", "bfs", "local_search"]: 
         ComboSubgraph = nx.Graph() if label=="local_search" else None # local context combo-subgraph is not needed in baselines
         ComboGraph = nx.Graph()
         ComboGraph.add_nodes_from([start_combonode])
@@ -188,7 +188,7 @@ def run_search(
     while len(X_queried) < iterations:
         start_time = time()
         anchor = queried_best_loc.unsqueeze(0) if (restart_location_method=="queried_best" and label in graph_kernels) else start_location
-        n_initial_points = 1
+        n_initial_points = 1 # we set this number to 1 for restart (i.e. only evaluate 1 location at restart).
         # --------------- Select Query Location ------------------ 
         if label == "random": # We use a random sampler similar to "restart"
             candidates = set()
@@ -207,6 +207,9 @@ def run_search(
                     candidates = set([tuple(i.tolist()) for i in candidates]) 
             if len(candidates)>iterations:
                 candidates = candidates[:iterations]
+        elif label == "random_walk":
+            candidates = kRandom_Walk(Problem.underlying_graph, X_queried,
+                                      seed, k, n_initial_points)
         elif label in ["bfs", "dfs"]:
             candidates, list_stacks, ComboGraph = DFS_BFS_Search(Problem,
                                                      X_queried,
@@ -298,6 +301,7 @@ def run_search(
                 distance_from_start = 0
         else: 
             distance_from_start = 0
+        
         # We also record the exploration size and the current combosubgraph center degree
         if label in ["bfs","dfs"]:
             if distance_from_start > hop_tracker:

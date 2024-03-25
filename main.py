@@ -11,15 +11,6 @@ from itertools import product
 from plot_results import plot
 from create_path import create_path
 
-d_color = {"polynomial":"#1f77b4", "diffusion_ard":"#8c564b", 
-           "polynomial_suminverse":"#e377c2", "diffusion":"#7f7f7f",
-           "random":"#ff7f0e", "local_search":"#2ca02c", 
-           "dfs": "#d62728", "bfs": "#9467bd"} 
-d_label = {"polynomial":"BO_Poly", "polynomial_suminverse":"BO_SumInverse", 
-           "diffusion_ard":"BO_Diff_ARD", "diffusion":"BO_Diff", 
-           "random":"Random", "local_search":"Local search", 
-           "dfs": "Dfs", "bfs": "Bfs"}
-
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser()
@@ -31,7 +22,8 @@ if __name__ == "__main__":
     parser.add_argument('--start_seed', type=int, default=0)
     parser.add_argument('--Q', type=int, default=None)
     parser.add_argument('--failtol', type=int, default=None)
-    parser.add_argument('--plot_result', type=bool, default=True)
+    parser.add_argument('--plot_result', type=bool, default=False)
+    parser.add_argument('--ablation', type=bool, default=False)
     args = parser.parse_args()
     
     # load parameters from the defined yaml config file
@@ -43,26 +35,25 @@ if __name__ == "__main__":
 
     # set save path to the specified save_dir in config
     save_dir = config["save_dir"]
+    if args.ablation:
+        save_dir = save_dir + 'Ablation/'
+        config['n_exp'] = 10
     if not os.path.exists(save_dir):
         os.makedirs(save_dir, exist_ok=True)
 
     # Load some config parameters
+    seed=args.start_seed
     labels = config["label"] # defines the kernel methods
     problem_name=config["problem_name"] # the underlying problem
     problem_kwargs = config["problem_settings"] # settings of the underlying problem
     bo_kwargs = config["bo_settings"] # settings of Bayesian optimisation
     n_exp = getattr(config, "n_exp", 10) # number of repeated experiments
     plot_result = getattr(config, "plot_result", True)
+    animate = getattr(config, "animate", False)
     all_data_over_labels = {l: [] for l in labels}
     
-    # ======================== Experimental Settings with args =========================
-    # Update the configs with input args if they are specified
-    seed=args.start_seed
-    problem_kwargs["k"] = args.k if args.k is not None else getattr(problem_kwargs, "k", 2)
-    bo_kwargs["start_location"] = args.starting if args.starting is not None else getattr(bo_kwargs,"start_location","random")
-    # Settings for ablation studies
-    bo_kwargs["Q"] = args.Q if args.Q is not None else bo_kwargs["Q"]
-    bo_kwargs["tr_settings"]["fail_tol"] = args.failtol if args.failtol is not None else bo_kwargs["tr_settings"]["fail_tol"]
+    # Settings to use a faster subgraph construction method for scale-free networks CS and ba
+    bo_kwargs["large_Q"] = True if (problem_kwargs["graph_type"] in ['CS', 'ba',] and problem_kwargs["k"] >= 16) else False
     
     # ======================== Run ==========================
     save_path = create_path(save_dir, problem_name, problem_kwargs, bo_kwargs)
@@ -83,6 +74,7 @@ if __name__ == "__main__":
                        large_Q=getattr(bo_kwargs, "large_Q", False),
                        exploitation=getattr(bo_kwargs,"exploitation",False),
                        k=problem_kwargs["k"],
+                       animation=animate,
                        trust_region_kwargs=getattr(bo_kwargs, "tr_settings", None),
                        problem_kwargs=problem_kwargs)
     if args.plot_result:
