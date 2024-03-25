@@ -7,9 +7,9 @@ conda create -n graph
 conda install networkx numpy pandas matplotlib seaborn scipy jupyterlab
 conda install pyg -c pyg
 conda install botorch -c pytorch -c gpytorch -c conda-forge
-conda install -c conda-forge --strict-channel-priority osmnx
 conda activate graph
 pip install ndlib
+pip install osmnx
 ```
 
 ## Run
