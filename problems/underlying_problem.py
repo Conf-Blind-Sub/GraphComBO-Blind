@@ -16,11 +16,12 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.utils.convert import to_networkx, from_networkx 
 from scipy.stats import wasserstein_distance
 from scipy.spatial import distance
+from ndlib.models.epidemics.SIRModel import SIRModel
 from typing import Optional, Any, Union, Tuple, Callable, Dict
 from search.utils import eigendecompose_laplacian, graph_relabel
 from utils.config_utils import setup
 from problems.GNN.GNN_attack import GIN, generate_prediction
-from problems.SIR import SIR_MC, One_SIR_Run
+from problems.SIR import SIR_MC, One_SIR_Run, individual_infection_time
 from problems.IC import IC_MC
 
 # Formulate the underlying problem as Class object
@@ -90,6 +91,7 @@ def get_synthetic_problem(
     n = problem_kwargs.get("n", 5000)
     k = problem_kwargs.get("k", 2)
     graph_type = problem_kwargs.get("graph_type", "ba")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     
     # ----------------- Underlying Graphs --------------------
     if graph_type == "ba":
@@ -103,8 +105,15 @@ def get_synthetic_problem(
         g = nx.generators.random_graphs.watts_strogatz_graph(
             n=n, k=wsk, p=p, seed=seed)
         print(f"Using WS network (n={n} k={wsk} p={p}) with {problem_kwargs['underlying_function']} defined on {k} combinations of nodes")
+    elif graph_type == "sbm":
+        ngroup = problem_kwargs.get("ngroup", 4)
+        probin = problem_kwargs.get("probin", 0.05)
+        probout = problem_kwargs.get("probout", 0.001)
+        groups, p = [int(n/ngroup)]*ngroup, [probin, probout]
+        probs = [[p[0] if i == j else p[1] for j in range(ngroup)] for i in range(ngroup)]
+        g = nx.stochastic_block_model(groups, probs, seed=seed)
+        print(f"Using SBM network (n={n}, #group={ngroup}, p_in={probin}, p_out={probout}) with {problem_kwargs['underlying_function']} defined on {k} combinations of nodes")
     elif graph_type == "grid":
-        print(f"Using grid network (n={n}) with {problem_kwargs['underlying_function']} defined on {k} combinations of nodes")
         n, m = int(sqrt(n)), int(sqrt(n))
         g = nx.generators.grid_2d_graph(n, m)
         mapping = {}
@@ -112,12 +121,16 @@ def get_synthetic_problem(
             for j in range(m):
                 mapping[(i, j)] = i * m + j
         g = nx.relabel_nodes(g, mapping)
+        print(f"Using grid network (|V|={g.number_of_nodes()}, |E|={len(g.edges)}) with {problem_kwargs['underlying_function']} defined on {k} combinations of nodes")
     elif graph_type in ["contact_network_day1", "contact_network_day2"]:
         # Two real-world contact networks in a French primary school: day1 and day2
-        current_dir = os.path.dirname(os.path.abspath(__file__))
         g,_,_ = graph_relabel(nx.read_gexf(f'{current_dir}/primary_school_{graph_type}.gexf_'))
-        print(f"Using epidemic {graph_type} (n={g.number_of_nodes()}) to select {k} nodes for protection "
-              f"that maximizes the expected time to reach {problem_kwargs['infection_percentage_threshold']} population infection.")
+        print(f"Using epidemic {graph_type} (n={g.number_of_nodes()}) "
+            f" |E|={g.number_of_edges()} with SIR simulation")
+    elif graph_type in ["contact_network_large"]:
+        g,_,_ = graph_relabel(nx.from_edgelist(np.load(f"{current_dir}/com_edge_list.npy")))
+        print(f"Using epidemic {graph_type} (|V|={g.number_of_nodes()}) "
+            f" |E|={g.number_of_edges()} with SIR simulation")
     elif graph_type in ["CS"]:
         dataset = Coauthor(root='./problems/Coauthor', name='CS')
         g = to_networkx(dataset[0])
@@ -127,8 +140,9 @@ def get_synthetic_problem(
         g = to_networkx(dataset[0])
         print(f"Using {graph_type} Page-Page network (n={g.number_of_nodes()}) to select {k} nodes for protection.")
     elif graph_type in ["Road"]:
-        road_network = ox.graph_from_place('Manhattan, New York City, NY, USA', network_type='drive')
-        #Road_Network = ox.graph_from_place('City of Westminster, London, England, UK', network_type='drive')
+        places = ['Manhattan, New York City, NY, USA']
+        #places = ['City of Westminster, London, England, UK', 'City of London, London, England, UK', 'Camden, London, England, UK', 'Kensington and Chelsea, London, England, UK']
+        road_network = ox.graph_from_place(places, network_type='drive')
         graph = nx.Graph(road_network.to_undirected()) # Here we make it undirected and without multi-edges.
         graph_line = nx.line_graph(graph) # Convert it to line graph such that roads become nodes.
         g, _, inverse_mapping = graph_relabel(graph_line)
@@ -158,8 +172,15 @@ def get_synthetic_problem(
         if feature_name == "betweenness_centrality":
             feature_dict = nx.betweenness_centrality(g)
             feature = torch.tensor(list(feature_dict.values()))
+        if feature_name == "pagerank":
+            feature_dict = nx.pagerank(g)
+            feature = torch.tensor(list(feature_dict.values()))
+            feature = (feature - feature.mean())/feature.std()
         elif feature_name == "eigenvector_centrality":
             feature_dict = nx.eigenvector_centrality(g, max_iter=1000)
+            feature = torch.tensor(list(feature_dict.values()))
+        elif feature_name == "degree_centrality":
+            feature_dict = nx.degree_centrality(g)
             feature = torch.tensor(list(feature_dict.values()))
         elif feature_name == "eigenvector":
             _, laplacian_eigenvecs = eigendecompose_laplacian(
@@ -184,23 +205,47 @@ def get_synthetic_problem(
         return SyntheticProblem(g, obj_func, ground_truth, problem_size=total_comb, **problem_kwargs)
     
     elif label in ["epidemic"]:
-        print(f"Using {problem_kwargs['SIR_n_iterations']} iterations in each SIR simulation and "
-              f"repeat {problem_kwargs['SIR_n_samples']} times to estimate the expected time of infecting the target proportion in population.")
-        feature_name = problem_kwargs.get("underlying_function", "infection_time")
-        def obj_func(combo_node): return compute_synthetic_node_features(combo_node, g, feature_name=feature_name,**problem_kwargs)
-        return SyntheticProblem(g, obj_func, problem_size=total_comb, **problem_kwargs)
+        feature_name = problem_kwargs.get("underlying_function", "population_infection_time")
+        if feature_name == "population_infection_time":
+            print(f"The goal is to select {k} nodes for protection that maximizes the expected time to reach "
+                f"{problem_kwargs['infection_percentage_threshold']} population infection such that the disease "
+                f"transimision is maximally slowed down.")
+            print(f"We use SIR for population infection time simulation, where each run has "
+                f"{problem_kwargs['SIR_n_iterations']} iterations and we repeat {problem_kwargs['SIR_n_samples']} "
+                f"times to estimate the expected time of infecting {problem_kwargs['infection_percentage_threshold']} "
+                f"fraction of the population.")
+            def obj_func(combo_node): return compute_synthetic_node_features(combo_node, g, feature_name=feature_name,**problem_kwargs)
+            return SyntheticProblem(g, obj_func, problem_size=total_comb, **problem_kwargs)
+        
+        elif feature_name == "individual_infection_time":
+            print(f"Using a single SIR simulation to mimic an epidemic process, the goal is to identify "
+                  f"the earliest {k} patients that are infected at T = {problem_kwargs['SIR_n_iterations']}.")
+            cfg = mc.Configuration()
+            cfg.add_model_parameter('beta', problem_kwargs['beta'])
+            cfg.add_model_parameter('gamma', problem_kwargs['gamma'])
+            cfg.add_model_parameter("fraction_infected", problem_kwargs['fraction_infected'])
+            model = SIRModel(g, seed)
+            model.set_initial_status(cfg)
+            feature = individual_infection_time(model, problem_kwargs['SIR_n_iterations'], seed)
+            feature_sorted, idx = feature.sort()
+            print("computing ground truth for synthetic problems ...........")
+            ground_truth = feature_sorted[-k:].mean()
+            def obj_func(combo_node): return compute_synthetic_node_features(combo_node, g, feature_name=feature_name, feature=feature)
+            return SyntheticProblem(g, obj_func, ground_truth, problem_size=total_comb, **problem_kwargs)
     elif label in ["influence_maximisation"]:
         print(f"Using p={problem_kwargs['IC_p']} in each IC simulation and "
               f"repeat {problem_kwargs['IC_n_samples']} times to estimate the expected number of influence.")
         feature_name = problem_kwargs.get("underlying_function", "independent_cascading")
         def obj_func(combo_node): return compute_synthetic_node_features(combo_node, g, feature_name=feature_name,**problem_kwargs)
         return SyntheticProblem(g, obj_func, problem_size=total_comb, **problem_kwargs)
+    
     elif label in ["resilience"]:
         feature_name = problem_kwargs.get("underlying_function", "transitivity")
         def obj_func(combo_node):
             return compute_synthetic_node_features(combo_node, graph, feature_name=feature_name, 
                                                    inverse_mapping=inverse_mapping, **problem_kwargs)
         return SyntheticProblem(g, obj_func, problem_size=total_comb, **problem_kwargs)
+    
     elif label in ["gnn_attack"]:
         feature_name = problem_kwargs.get("underlying_function", "JS")
         gnn_config = setup('./problems/GNN/config.yaml') # load the GNN configs
@@ -225,12 +270,11 @@ def compute_synthetic_node_features(
         **problem_kwargs):
     nnodes = len(input_graph)
     if feature is not None: # A synthetic setting by averaging pre-computed node-features over nodes.
-        ret = list(map(lambda x: feature[combo_node[x]].mean(),
-                                    range(combo_node.shape[0])))
+        ret = list(map(lambda x: feature[combo_node[x]].mean(), range(combo_node.shape[0])))
     else: # This is for real-world scenarios when we don't have pre-computed synthetic features 
         start_time = time.time()
         ret = [] # an empty list to store evaluation results
-        if feature_name == "infection_time":
+        if feature_name == "population_infection_time":
             cfg = mc.Configuration()
             cfg.add_model_parameter('beta', 0.001)
             cfg.add_model_parameter('gamma', 0.01)
@@ -244,6 +288,7 @@ def compute_synthetic_node_features(
                                         threshold=problem_kwargs.get("infection_percentage_threshold",0.5),
                                         parallel_function=partial_function)
                 ret.append(function_value)
+        
         elif feature_name == "independent_cascading":
             for ComboNode in combo_node:
                 function_value = IC_MC(input_graph, 
@@ -251,12 +296,14 @@ def compute_synthetic_node_features(
                                        p=problem_kwargs.get("IC_p",0.05), 
                                        mc=problem_kwargs.get("IC_n_samples",1000))
                 ret.append(function_value)
+        
         elif feature_name == "transitivity": # Note the underlying graph is a line graph
             for ComboNode in combo_node:
                 edges_to_remove = [inverse_mapping[i.item()] for i in ComboNode] # map combonode back to edge-tuple labels
                 G = input_graph.copy()
                 G.remove_edges_from(edges_to_remove)
                 ret.append(-round(nx.transitivity(G),4))
+        
         elif feature_name in ["JS", 'WD']: # Note the underlying graph is a line graph
             for ComboNode in combo_node:
                 edges_to_remove = torch.tensor([inverse_mapping[i.item()] for i in ComboNode]) # map combonode back to edge-tuple labels
@@ -278,7 +325,7 @@ def compute_synthetic_node_features(
             raise ValueError(f"Unknown feature name {feature_name}")
 
         end_time = time.time()
-        if feature_name in ["independent_cascading", "infection_time"]:
+        if feature_name in ["independent_cascading", "population_infection_time"]:
             print(f"time cost for evaluation: {(end_time - start_time):.4f}s")
 
     return torch.tensor(ret).reshape(-1,1)

@@ -1,9 +1,10 @@
 import numpy as np
-import torch
 import networkx as nx
 import multiprocessing
 import time
+import torch
 import warnings
+import future.utils
 import ndlib.models.ModelConfig as mc
 from ndlib.models.epidemics.SIRModel import SIRModel
 
@@ -36,4 +37,48 @@ def SIR_MC(T,N,n_samples,threshold,parallel_function,parallel=True):
     infection_time_list = np.array(infection_time_list)
     infection_time_valid = infection_time_list[~(infection_time_list == T)] # filter out invalid simulations
     function_value = np.mean(infection_time_valid).round(1)
-    return function_value # optional: make it negative if we want to minimize it in the experiment.
+    return function_value/T # optional: make it negative if we want to minimize it in the experiment.
+
+def individual_infection_time(model, iter_max, seed):
+    # Keep track of nodes that have been infected
+    set_infected = set([node for node, nstatus in future.utils.iteritems(model.status) if nstatus == model.available_statuses['Infected']])
+    set_susceptible = [node for node, nstatus in future.utils.iteritems(model.status) if nstatus == model.available_statuses['Susceptible']]
+
+    # Get parameters
+    epsilon = 0.001 # Spontaneous infection
+    
+    iteration = model.iteration()
+    feature = iteration['status'] # Get initial starting points for infected nodes
+    
+    while (iteration['node_count'][1] != 0) and (iteration['iteration'] < iter_max):
+        iteration = model.iteration()
+        current_status = iteration['status']
+        
+        # Introduce spontaneous infections
+        n_susceptible = len(set_susceptible)
+        n_drawn = int(np.random.binomial(n=n_susceptible, p=epsilon, size=1))
+        list_spontaneous_infection = np.random.RandomState(seed).choice(
+            set_susceptible, n_drawn, replace=False
+        ).tolist()
+        for spontaneous_infection in list_spontaneous_infection:
+            model.status[spontaneous_infection] = 1
+        
+        # Add them to new infections and value function
+        for key in list_spontaneous_infection:
+            if key not in set_infected:
+                set_infected.add(key)
+                feature[key] = iteration['iteration'] + 1
+        for key, value in current_status.items():
+            if value == 1 and key not in set_infected:
+                set_infected.add(key)
+                feature[key] = iteration['iteration'] + 1 
+    '''
+    for key, value in feature.items():
+        if value != 0:
+            feature[key] = iteration['iteration'] - feature[key]
+    '''
+    for key, value in feature.items():
+        if value != 0:
+            feature[key] = (1 - (feature[key] - 1) /
+                            (iteration['iteration'] + 1))**2
+    return torch.tensor(list(feature.values())).to(torch.float)

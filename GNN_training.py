@@ -10,8 +10,7 @@ from problems.GNN.GNN_attack import GIN
 from utils.config_utils import setup
 
 # This is the code to train the victim GNN (a GIN model) and store its parameters
-# it can achieve 99.5% training accuracy when using the pre-specified hyper-parameters
-# on ENZYMES from TUDataset
+# it can achieve 96% training accuracy when using the pre-specified hyper-parameters
 if __name__ == '__main__':
     seed = 0
     torch.manual_seed(seed)
@@ -68,6 +67,6 @@ if __name__ == '__main__':
         acc = train_acc()
         print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}, Train Acc: {acc:.4f}')
         if len(acc_list) and acc > max(acc_list): # Here we only record the epoch with best training acc
-            torch.save(model.state_dict(), './problems/GNN/gin_model_state.pt')
+            #torch.save(model.state_dict(), './problems/GNN/gin_model_state.pt')
             print(f'model state saved at Epoch {epoch:03d} with training acc {acc:.4f}')
         acc_list.append(acc)

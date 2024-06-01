@@ -1,5 +1,19 @@
-# Bayesian Optimization of Functions over Node Combinations in Graphs
-This is the python implementation with BOTorch for the paper Bayesian Optimization of Functions over Node Combinations in Graphs.
+# Bayesian Optimization of Functions over Node Subsets in Graphs
+
+## Overall Structure - Demo
+<img width="2237" alt="image" src="https://github.com/LeonResearch/GraphComBO/assets/64602721/b1f56340-278a-45b1-865c-77c30139c183">
+
+
+### Search Animation 
+<div align="center">
+  <img src="https://github.com/LeonResearch/GraphComBO/assets/64602721/f8c13e14-53b4-470c-ae03-03932b7eedeb" alt="combo-subgraph" style="width: 60%; height: 60%">
+</div>
+
+## Recursive Combo-subgraph Sampling - Demo
+
+<div align="center">
+  <img src="https://github.com/LeonResearch/GraphComBO/assets/64602721/ee5fe868-4740-4af3-86f5-26101329492d" alt="combo-subgraph" style="width: 60%; height: 60%">
+</div>
 
 ## Create virtual env & install dependencies
 ```
@@ -21,4 +35,7 @@ python main.py --problem GRID
 python main.py --problem SBM
 python main.py --problem Transitivity
 python main.py --problem GNN_attack
+python main.py --problem Coauthor_IC
+python main.py --problem SIR
+python main.py --problem Patient_Zero
 ```

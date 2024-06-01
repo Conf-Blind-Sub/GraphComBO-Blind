@@ -1,6 +1,6 @@
-label: [diffusion_ard, local_search, dfs, bfs, random, random_walk]
-save_dir: ./logs/Road_Transitivity/
-n_exp: 10 # number of experiments with different random seeds
+label: [diffusion_ard] # [diffusion_ard, local_search, dfs, bfs, random] #[polynomial, polynomial_suminverse, diffusion, diffusion_ard, local_search, random, bfs, dfs]
+save_dir: ./logs/May15/
+n_exp: 5 # number of experiments with different random seeds
 bo_settings:
   batch_size: 1 # batch size
   max_iters: 300 # number of total queries
@@ -16,8 +16,9 @@ bo_settings:
     trust_region_multiplier: 1.5 
     succ_tol: 10 # success tolerance
     fail_tol: 30 # fail tolerance
+    shrink_tol: 10       # shrink tolerance
 problem_name: resilience # the experimental problem type
 problem_settings:  
   graph_type: Road 
-  k: 4 # number of combinations
+  k: 8 # number of combinations
   underlying_function: transitivity

@@ -25,4 +25,4 @@ def IC(graph,S,p,i):
 def IC_MC(graph,S,p,mc):
     partial_func = partial(IC,graph,S,p)
     results = list(map(partial_func,list(range(mc))))
-    return np.mean(results).round(1).item()
+    return np.mean(results).round(1).item() / graph.number_of_nodes() * 100

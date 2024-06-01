@@ -1,6 +1,6 @@
-label: [diffusion_ard, local_search, dfs, bfs, random, random_walk]
-save_dir: ./logs/GNN_Attack/
-n_exp: 10 # number of experiments with different random seeds
+label: [diffusion_ard] # [polynomial, polynomial_suminverse, diffusion, diffusion_ard, local_search, random, bfs, dfs]
+save_dir: ./logs/May15/
+n_exp: 5 # number of experiments with different random seeds
 bo_settings:
   batch_size: 1 # batch size
   max_iters: 100 # number of total queries
@@ -16,9 +16,10 @@ bo_settings:
     trust_region_multiplier: 1.5 
     succ_tol: 10 # success tolerance
     fail_tol: 30 # fail tolerance
+    shrink_tol: 10       # shrink tolerance
 problem_name: gnn_attack # We train a GIN model and see how its prediction changes when we perturb the input graph by deleting k edges
 problem_settings:  
   graph_type: ENZYMES # we use ENZYMES/DD dataset from TU dataset for graph classification
-  k: 4 # number of combinations
+  k: 8 # number of combinations
   underlying_function: WD # the Wasserstein distance or JS divergence between predictions on the original graph and perturbed graph at softmax
   graph_index: 0 # index of the victim graph in the dataset
